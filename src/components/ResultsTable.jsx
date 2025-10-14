@@ -33,7 +33,7 @@ export default function ResultsTable({ results, hasSearched, isTruncated, totalR
               <th>Descrição</th>
               <th>Vigência</th>
               <th>Ato Normativo</th>
-              <th>Classificação Tributária</th>
+              <th>Classificação Tributária IBS/CBS</th>
             </tr>
           </thead>
           <tbody>
@@ -43,7 +43,7 @@ export default function ResultsTable({ results, hasSearched, isTruncated, totalR
                 <td>{item.descricao || item.Descricao || 'Descrição não disponível'}</td>
                 <td>{formatVigencia(item)}</td>
                 <td>{formatAto(item)}</td>
-                <td>{formatClassification(item.classificacao)}</td>
+                <td>{renderClassificationDetails(item.classificacao)}</td>
               </tr>
             ))}
           </tbody>
@@ -81,26 +81,46 @@ function formatAto(item) {
   return texto || '-';
 }
 
-function formatClassification(classificacao) {
+function renderClassificationDetails(classificacao) {
   if (!classificacao) {
     return 'Classificação não disponível';
   }
 
-  const codigo =
-    classificacao['Código da Classificação Tributária'] ||
-    classificacao.codigo ||
-    classificacao.Codigo ||
+  const codigo = classificacao.codigo || classificacao.Codigo || '';
+  const nome = classificacao.nome || classificacao['Nome cClassTrib'] || '';
+  const descricao = classificacao.descricao || classificacao.Descricao || '';
+  const dataAtualizacao = classificacao.dataAtualizacao || classificacao.DataAtualização || '';
+  const cst = classificacao.cst || classificacao['CST-IBS/CBS'] || '';
+  const descricaoCst =
+    classificacao.descricaoCst ||
+    classificacao['Descrição CST-IBS/CBS'] ||
     '';
-  const descricao =
-    classificacao['Descrição do Código da Classificação Tributária'] ||
-    classificacao.descricao ||
-    classificacao.Descricao ||
-    '';
+  const lc21425 = classificacao.lc21425 || classificacao['LC 214/25'] || '';
+  const tipoAliquota = classificacao.tipoAliquota || classificacao['Tipo de Alíquota'] || '';
 
-  if (codigo && descricao) {
-    return `${codigo} - ${descricao}`;
-  }
-  return codigo || descricao || 'Classificação não disponível';
+  return (
+    <div className="classification-details">
+      <div className="classification-details__header">
+        <span className="classification-details__code">{codigo || 'Código não informado'}</span>
+        <span className="classification-details__cst">
+          {cst ? `${cst}${descricaoCst ? ` - ${descricaoCst}` : ''}` : 'CST não informado'}
+        </span>
+      </div>
+      {nome && <p className="classification-details__name">{nome}</p>}
+      <p className="classification-details__description">{descricao || 'Descrição não disponível.'}</p>
+      <ul className="classification-details__meta">
+        <li>
+          <strong>Data de atualização:</strong> {dataAtualizacao || 'Não informada'}
+        </li>
+        <li>
+          <strong>LC 214/25:</strong> {lc21425 || 'Não informada'}
+        </li>
+        <li>
+          <strong>Tipo de alíquota:</strong> {tipoAliquota || 'Não informado'}
+        </li>
+      </ul>
+    </div>
+  );
 }
 
 const DIGIT_ONLY_REGEX = /\D/g;
