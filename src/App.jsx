@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import SearchBar from './components/SearchBar';
 import ResultsTable from './components/ResultsTable';
 import ncmData from './data/Tabela_NCM_Vigente_20240921.json';
-import classData from './data/classificacao_tributaria.json';
+import cclassData from './data/cclass-trib-publicacao.json';
+import ncmClassificationMapping from './data/ncm_cclass_mapping.json';
 
 const DIGIT_ONLY_REGEX = /\D/g;
 const DIACRITICS_REGEX = /\p{Diacritic}/gu;
@@ -19,48 +20,60 @@ function normalizeText(text) {
     .toLowerCase();
 }
 
-function extractClassificationCode(entry) {
-  if (!entry || typeof entry !== 'object') {
-    return '';
-  }
-
-  const possibleKeys = [
-    'codigo_ncm',
-    'Código NCM',
-    'Código_NCM',
-    'CodigoNCM',
-    'NCM',
-    'codigo',
-    'Codigo'
-  ];
-
-  for (const key of possibleKeys) {
-    if (typeof entry[key] === 'string') {
-      const normalized = entry[key].replace(DIGIT_ONLY_REGEX, '');
-      if (normalized.length === 8) {
-        return normalized;
-      }
-    }
-  }
-
-  return '';
-}
-
-function buildClassificationMap(data) {
+function buildClassificationDetailsMap(data) {
   if (!Array.isArray(data)) {
     return new Map();
   }
 
   return data.reduce((map, entry) => {
-    const code = extractClassificationCode(entry);
-    if (code && !map.has(code)) {
-      map.set(code, entry);
+    if (!entry || typeof entry !== 'object') {
+      return map;
     }
+
+    const code = typeof entry.cClassTrib === 'string'
+      ? entry.cClassTrib.trim()
+      : '';
+
+    if (!code || map.has(code)) {
+      return map;
+    }
+
+    map.set(code, {
+      codigo: code,
+      nome: entry['Nome cClassTrib']?.trim() ?? '',
+      descricao: entry['Descrição cClassTrib']?.trim() ?? '',
+      cst: entry['CST-IBS/CBS']?.trim() ?? '',
+      descricaoCst: entry['Descrição CST-IBS/CBS']?.trim() ?? '',
+      lc21425: entry['LC 214/25']?.trim() ?? '',
+      tipoAliquota: entry['Tipo de Alíquota']?.trim() ?? '',
+      dataAtualizacao: entry.DataAtualização?.trim() ?? '',
+    });
+
     return map;
   }, new Map());
 }
 
-function prepareNcmDataset(rawData, classificationMap) {
+function buildNcmClassificationMap(mapping) {
+  if (!mapping || typeof mapping !== 'object') {
+    return new Map();
+  }
+
+  return Object.entries(mapping).reduce((map, [rawCode, classificationCode]) => {
+    if (typeof rawCode !== 'string' || typeof classificationCode !== 'string') {
+      return map;
+    }
+
+    const normalizedCode = rawCode.replace(DIGIT_ONLY_REGEX, '');
+    if (normalizedCode.length !== 8) {
+      return map;
+    }
+
+    map.set(normalizedCode, classificationCode.trim());
+    return map;
+  }, new Map());
+}
+
+function prepareNcmDataset(rawData, classificationDetailsMap, ncmClassificationMap) {
   const entries = Array.isArray(rawData?.Nomenclaturas)
     ? rawData.Nomenclaturas
     : Array.isArray(rawData)
@@ -85,9 +98,17 @@ function prepareNcmDataset(rawData, classificationMap) {
         normalizedCodigo,
       };
 
-      const classification = classificationMap.get(normalizedCodigo);
-      if (classification) {
-        return { ...merged, classificacao: classification };
+      const classificationCode = ncmClassificationMap.get(normalizedCodigo);
+      if (classificationCode) {
+        const classificationDetails = classificationDetailsMap.get(classificationCode);
+        if (classificationDetails) {
+          return { ...merged, classificacao: classificationDetails };
+        }
+
+        return {
+          ...merged,
+          classificacao: { codigo: classificationCode }
+        };
       }
 
       return merged;
@@ -96,10 +117,17 @@ function prepareNcmDataset(rawData, classificationMap) {
 }
 
 export default function App() {
-  const classificationMap = useMemo(() => buildClassificationMap(classData), []);
+  const classificationDetailsMap = useMemo(
+    () => buildClassificationDetailsMap(cclassData),
+    []
+  );
+  const ncmClassificationMap = useMemo(
+    () => buildNcmClassificationMap(ncmClassificationMapping),
+    []
+  );
   const dataset = useMemo(
-    () => prepareNcmDataset(ncmData, classificationMap),
-    [classificationMap]
+    () => prepareNcmDataset(ncmData, classificationDetailsMap, ncmClassificationMap),
+    [classificationDetailsMap, ncmClassificationMap]
   );
 
   const [results, setResults] = useState([]);
