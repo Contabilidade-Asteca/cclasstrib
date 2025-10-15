@@ -1,126 +1,91 @@
 /**
- * Exibe os resultados da busca em formato de tabela. Caso não haja
- * resultados, apresenta uma mensagem contextual.
- * @param {{
- *   results: any[],
- *   hasSearched: boolean,
- *   isTruncated: boolean,
- *   totalResults: number
- * }} props
+ * Componente ResultsTable
+ *
+ * @param {object} props - As propriedades do componente.
+ * @param {Array} props.results - Uma lista de itens a serem exibidos na tabela.
+ * @param {boolean} props.hasSearched - Um indicador para saber se uma busca já foi realizada.
+ * @param {boolean} props.isTruncated - Um indicador para saber se os resultados foram truncados (limitados).
+ * @param {number} props.totalResults - O número total de resultados encontrados na busca.
  */
 export default function ResultsTable({ results, hasSearched, isTruncated, totalResults }) {
+  // Se nenhuma busca foi feita ainda, o componente não renderiza nada.
   if (!hasSearched) {
-    return <p className="placeholder">Digite um termo ou código para iniciar a consulta.</p>;
+    return null;
   }
 
-  if (!results || results.length === 0) {
-    return <p className="placeholder">Nenhum resultado encontrado para a busca informada.</p>;
+  // Se uma busca foi feita, mas não encontrou resultados, exibe uma mensagem.
+  if (results.length === 0) {
+    return <p>Nenhum resultado encontrado.</p>;
   }
 
+  // Renderiza a tabela de resultados.
   return (
-    <section className="results-section">
-      <p className="results-summary">
-        {isTruncated
-          ? `Exibindo ${results.length} de ${totalResults} resultados encontrados. Refine a busca para ver mais.`
-          : `Foram encontrados ${totalResults} resultado${totalResults === 1 ? '' : 's'}.`}
-      </p>
-      <div className="table-wrapper">
-        <table>
-          <caption className="sr-only">Tabela com os resultados da consulta de NCM</caption>
-          <thead>
-            <tr>
-              <th>Código NCM</th>
-              <th>Descrição</th>
-              <th>Vigência</th>
-              <th>Ato Normativo</th>
-              <th>Classificação Tributária IBS/CBS</th>
+    <>
+      {/* Se os resultados foram truncados, exibe uma mensagem de aviso. */}
+      {isTruncated && (
+        <p>
+          <strong>
+            Atenção: A busca retornou {totalResults} resultados. Apenas os
+            primeiros 200 estão sendo exibidos.
+          </strong>
+        </p>
+      )}
+      {/* Início da tabela de resultados. */}
+      <table>
+        {/* Cabeçalho da tabela. */}
+        <thead>
+          <tr>
+            <th>Item (NCM/NBS)</th>
+            <th>Classificação Tributária</th>
+            <th>CST-IBS/CBS</th>
+            <th>LC 214/25</th>
+            <th>Tipo de Alíquota</th>
+            <th>Data de Atualização</th>
+          </tr>
+        </thead>
+        {/* Corpo da tabela, onde os resultados são renderizados. */}
+        <tbody>
+          {/* Mapeia cada item do array de resultados para uma linha da tabela. */}
+          {results.map((item, index) => (
+            <tr key={index}>
+              {/* Coluna do Item (NCM/NBS): exibe o código formatado e a descrição. */}
+              <td>
+                <strong>{item.codigo_formatado}</strong>
+                <br />
+                {item.descricao}
+              </td>
+              {/* Coluna da Classificação Tributária: exibe o código e a descrição da classificação. */}
+              <td>
+                {/* Verifica se existe uma classificação para o item antes de tentar exibir. */}
+                {item.classificacao?.codigo && (
+                  <>
+                    <strong>{item.classificacao.codigo}</strong>
+                    <br />
+                    {item.classificacao.descricao}
+                  </>
+                )}
+              </td>
+              {/* Coluna do CST-IBS/CBS: exibe o código e a descrição do CST. */}
+              <td>
+                {/* Verifica se existe um CST para a classificação antes de tentar exibir. */}
+                {item.classificacao?.cst && (
+                  <>
+                    <strong>{item.classificacao.cst}</strong>
+                    <br />
+                    {item.classificacao.descricaoCst}
+                  </>
+                )}
+              </td>
+              {/* Coluna da LC 214/25: exibe a referência da lei. */}
+              <td>{item.classificacao?.lc21425}</td>
+              {/* Coluna do Tipo de Alíquota: exibe o tipo de alíquota. */}
+              <td>{item.classificacao?.tipoAliquota}</td>
+              {/* Coluna da Data de Atualização: exibe a data da última atualização. */}
+              <td>{item.classificacao?.dataAtualizacao}</td>
             </tr>
-          </thead>
-          <tbody>
-            {results.map((item) => (
-              <tr key={item.codigo_ncm}>
-                <td>{item.codigo_formatado ?? formatNcmCode(item.codigo_ncm)}</td>
-                <td>{item.descricao || item.Descricao || 'Descrição não disponível'}</td>
-                <td>{formatVigencia(item)}</td>
-                <td>{formatAto(item)}</td>
-                <td>{renderClassificationDetails(item.classificacao)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
-
-function formatNcmCode(code) {
-  if (!code) {
-    return '-';
-  }
-  const digits = code.replace(DIGIT_ONLY_REGEX, '');
-  if (digits.length !== 8) {
-    return code;
-  }
-  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`;
-}
-
-function formatVigencia(item) {
-  const inicio = item.Data_Inicio;
-  const fim = item.Data_Fim;
-  if (inicio && fim) {
-    return `${inicio} a ${fim}`;
-  }
-  return inicio || fim || '-';
-}
-
-function formatAto(item) {
-  const tipo = item.Tipo_Ato_Ini;
-  const numero = item.Numero_Ato_Ini ? `nº ${item.Numero_Ato_Ini}` : '';
-  const ano = item.Ano_Ato_Ini;
-  const texto = [tipo, numero, ano].filter(Boolean).join(' ');
-  return texto || '-';
-}
-
-function renderClassificationDetails(classificacao) {
-  if (!classificacao) {
-    return 'Classificação não disponível';
-  }
-
-  const codigo = classificacao.codigo || classificacao.Codigo || '';
-  const nome = classificacao.nome || classificacao['Nome cClassTrib'] || '';
-  const descricao = classificacao.descricao || classificacao.Descricao || '';
-  const dataAtualizacao = classificacao.dataAtualizacao || classificacao.DataAtualização || '';
-  const cst = classificacao.cst || classificacao['CST-IBS/CBS'] || '';
-  const descricaoCst =
-    classificacao.descricaoCst ||
-    classificacao['Descrição CST-IBS/CBS'] ||
-    '';
-  const lc21425 = classificacao.lc21425 || classificacao['LC 214/25'] || '';
-  const tipoAliquota = classificacao.tipoAliquota || classificacao['Tipo de Alíquota'] || '';
-
-  return (
-    <div className="classification-details">
-      <div className="classification-details__header">
-        <span className="classification-details__code">{codigo || 'Código não informado'}</span>
-        <span className="classification-details__cst">
-          {cst ? `${cst}${descricaoCst ? ` - ${descricaoCst}` : ''}` : 'CST não informado'}
-        </span>
-      </div>
-      {nome && <p className="classification-details__name">{nome}</p>}
-      <p className="classification-details__description">{descricao || 'Descrição não disponível.'}</p>
-      <ul className="classification-details__meta">
-        <li>
-          <strong>Data de atualização:</strong> {dataAtualizacao || 'Não informada'}
-        </li>
-        <li>
-          <strong>LC 214/25:</strong> {lc21425 || 'Não informada'}
-        </li>
-        <li>
-          <strong>Tipo de alíquota:</strong> {tipoAliquota || 'Não informado'}
-        </li>
-      </ul>
-    </div>
-  );
-}
-
-const DIGIT_ONLY_REGEX = /\D/g;
