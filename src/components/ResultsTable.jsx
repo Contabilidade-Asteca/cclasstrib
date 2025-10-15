@@ -8,6 +8,28 @@
  * @param {number} props.totalResults - O número total de resultados encontrados na busca.
  */
 export default function ResultsTable({ results, hasSearched, isTruncated, totalResults }) {
+  // URL base para a Lei Complementar 214/25.
+  const LEGISLATION_BASE_URL = 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214.htm';
+
+  /**
+   * Gera a URL para um artigo específico da legislação.
+   * Extrai o primeiro número do texto da lei (ex: "Art. 157" -> "157").
+   * @param {string} lcText - O texto da referência da lei (ex: "Art. 157").
+   * @returns {string|null} A URL completa ou null se nenhum número for encontrado.
+   */
+  function getLegislationUrl(lcText) {
+    if (!lcText) {
+      return null;
+    }
+    // Usa uma expressão regular para encontrar o primeiro conjunto de dígitos no texto.
+    const match = lcText.match(/\d+/);
+    if (match) {
+      const articleNumber = match[0];
+      return `${LEGISLATION_BASE_URL}#art${articleNumber}`;
+    }
+    return null;
+  }
+
   // Se nenhuma busca foi feita ainda, o componente não renderiza nada.
   if (!hasSearched) {
     return null;
@@ -30,9 +52,7 @@ export default function ResultsTable({ results, hasSearched, isTruncated, totalR
           </strong>
         </p>
       )}
-      {/* Início da tabela de resultados. */}
       <table>
-        {/* Cabeçalho da tabela. */}
         <thead>
           <tr>
             <th>Item (NCM/NBS)</th>
@@ -43,47 +63,51 @@ export default function ResultsTable({ results, hasSearched, isTruncated, totalR
             <th>Data de Atualização</th>
           </tr>
         </thead>
-        {/* Corpo da tabela, onde os resultados são renderizados. */}
         <tbody>
-          {/* Mapeia cada item do array de resultados para uma linha da tabela. */}
-          {results.map((item, index) => (
-            <tr key={index}>
-              {/* Coluna do Item (NCM/NBS): exibe o código formatado e a descrição. */}
-              <td>
-                <strong>{item.codigo_formatado}</strong>
-                <br />
-                {item.descricao}
-              </td>
-              {/* Coluna da Classificação Tributária: exibe o código e a descrição da classificação. */}
-              <td>
-                {/* Verifica se existe uma classificação para o item antes de tentar exibir. */}
-                {item.classificacao?.codigo && (
-                  <>
-                    <strong>{item.classificacao.codigo}</strong>
-                    <br />
-                    {item.classificacao.descricao}
-                  </>
-                )}
-              </td>
-              {/* Coluna do CST-IBS/CBS: exibe o código e a descrição do CST. */}
-              <td>
-                {/* Verifica se existe um CST para a classificação antes de tentar exibir. */}
-                {item.classificacao?.cst && (
-                  <>
-                    <strong>{item.classificacao.cst}</strong>
-                    <br />
-                    {item.classificacao.descricaoCst}
-                  </>
-                )}
-              </td>
-              {/* Coluna da LC 214/25: exibe a referência da lei. */}
-              <td>{item.classificacao?.lc21425}</td>
-              {/* Coluna do Tipo de Alíquota: exibe o tipo de alíquota. */}
-              <td>{item.classificacao?.tipoAliquota}</td>
-              {/* Coluna da Data de Atualização: exibe a data da última atualização. */}
-              <td>{item.classificacao?.dataAtualizacao}</td>
-            </tr>
-          ))}
+          {results.map((item, index) => {
+            // Gera a URL da legislação para o item atual.
+            const url = getLegislationUrl(item.classificacao?.lc21425);
+
+            return (
+              <tr key={index}>
+                <td>
+                  <strong>{item.codigo_formatado}</strong>
+                  <br />
+                  {item.descricao}
+                </td>
+                <td>
+                  {item.classificacao?.codigo && (
+                    <>
+                      <strong>{item.classificacao.codigo}</strong>
+                      <br />
+                      {item.classificacao.descricao}
+                    </>
+                  )}
+                </td>
+                <td>
+                  {item.classificacao?.cst && (
+                    <>
+                      <strong>{item.classificacao.cst}</strong>
+                      <br />
+                      {item.classificacao.descricaoCst}
+                    </>
+                  )}
+                </td>
+                {/* Coluna da LC 214/25 com o link e o ícone. */}
+                <td>
+                  {item.classificacao?.lc21425}
+                  {/* Se a URL foi gerada com sucesso, mostra o ícone com o link. */}
+                  {url && (
+                    <a href={url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '8px', textDecoration: 'none' }}>
+                      📖
+                    </a>
+                  )}
+                </td>
+                <td>{item.classificacao?.tipoAliquota}</td>
+                <td>{item.classificacao?.dataAtualizacao}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </>
