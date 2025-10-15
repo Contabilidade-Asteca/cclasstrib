@@ -46,8 +46,7 @@ export default function SearchBar({ value, onSearch }) {
         </button>
       </div>
       <p className="search-bar__hint">
-        A busca é acentuação-insensível e aceita múltiplas palavras. Use códigos
-        completos para resultados mais precisos.
+        Use códigos completos para resultados mais precisos.
       </p>
     </form>
   );
