@@ -59,7 +59,6 @@ export default function ResultsTable({ results, hasSearched, isTruncated, totalR
             <th>Classificação Tributária</th>
             <th>CST-IBS/CBS</th>
             <th>LC 214/25</th>
-            <th>Tipo de Alíquota</th>
             <th>Data de Atualização</th>
           </tr>
         </thead>
@@ -103,7 +102,6 @@ export default function ResultsTable({ results, hasSearched, isTruncated, totalR
                     </a>
                   )}
                 </td>
-                <td>{item.classificacao?.tipoAliquota}</td>
                 <td>{item.classificacao?.dataAtualizacao}</td>
               </tr>
             );
