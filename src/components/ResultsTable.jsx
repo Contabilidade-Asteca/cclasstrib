@@ -1,6 +1,8 @@
 /**
  * Renderiza a tabela com os resultados da busca, combinando itens NCM/NBS
  * com as classificações tributárias encontradas na base da cclasstrib.
+ * Cada linha representa uma combinação item ↔ classificação calculada no App.
+ *
  * @param {{ results: Array<{ item: object, classificacao: object | null }> }} props
  */
 export default function ResultsTable({ results }) {
@@ -17,6 +19,8 @@ export default function ResultsTable({ results }) {
       </thead>
       <tbody>
         {results.map(({ item, classificacao }, index) => {
+          // Como o mesmo item pode aparecer várias vezes (cada classificação gera uma linha)
+          // usamos o índice na chave para evitar colisões.
           const key = `${item.tipo}-${item.codigoNormalizado}-${index}`;
           return (
             <tr key={key}>
