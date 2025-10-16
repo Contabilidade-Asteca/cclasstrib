@@ -19,7 +19,7 @@ export default function SearchBar({ value, onSearch }) {
   return (
     <form className="search-bar" onSubmit={handleSubmit}>
       <label className="search-bar__label" htmlFor="ncm-search-input">
-        Pesquise por código NCM do bem ou serviço.
+        Pesquise por código NCM ou NBS.
       </label>
       <div className="search-bar__controls">
         <input
