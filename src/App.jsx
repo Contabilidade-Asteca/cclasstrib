@@ -5,15 +5,48 @@ import ncmRaw from './Data/Tabela_NCM.json';
 import nbsRaw from './Data/Tabela_NBS.json';
 import classificationRaw from './Data/cclasstrib.json';
 
+/**
+ * Expressão regular que captura qualquer caractere que não seja número.
+ * É utilizada para higienizar códigos NCM/NBS removendo pontos, traços etc.
+ */
 const DIGITS_ONLY_REGEX = /\D+/g;
+
+/**
+ * Expressão regular que identifica acentos e diacríticos.
+ * Usada em conjunto com `String.prototype.normalize` para remover variações
+ * de acentuação antes de comparar textos.
+ */
 const DIACRITICS_REGEX = /\p{Diacritic}/gu;
+
+/**
+ * Conjunto de palavras consideradas irrelevantes em buscas por texto.
+ * A filtragem evita que termos muito comuns gerem falsos positivos na
+ * correlação entre descrições e classificações tributárias.
+ */
 const STOP_WORDS = new Set([
   'a', 'e', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'para', 'por',
   'em', 'no', 'na', 'nos', 'nas', 'com', 'sem', 'um', 'uma', 'uns', 'umas'
 ]);
+
+/**
+ * Limite máximo de linhas exibidas simultaneamente na tabela de resultados.
+ * Impede que consultas muito abrangentes deixem a interface lenta ou difícil
+ * de navegar.
+ */
 const MAX_RESULTS = 200;
+
+/**
+ * Quantidade máxima de classificações tributárias associadas a um mesmo item.
+ * Mantém o resultado conciso, priorizando as classificações mais relevantes
+ * segundo a pontuação calculada.
+ */
 const MAX_CLASSIFICATIONS_PER_ITEM = 5;
 
+/**
+ * Normaliza textos para facilitar comparações case-insensitive e sem acentos.
+ * @param {unknown} text Texto original que pode ser string ou outro tipo.
+ * @returns {string} Texto convertido para minúsculas, sem acentos.
+ */
 function normalizeText(text) {
   if (!text) {
     return '';
@@ -26,16 +59,31 @@ function normalizeText(text) {
     .toLowerCase();
 }
 
+/**
+ * Remove caracteres não numéricos de um código NCM/NBS.
+ * @param {unknown} value Código original possivelmente com formatação.
+ * @returns {string} Sequência numérica contínua utilizada nas buscas.
+ */
 function normalizeCode(value) {
   return value ? value.toString().replace(DIGITS_ONLY_REGEX, '') : '';
 }
 
+/**
+ * Gera palavras-chave a partir de um texto previamente normalizado.
+ * @param {string} normalizedText Texto em minúsculas e sem acento.
+ * @returns {string[]} Lista de tokens relevantes com pelo menos 3 caracteres.
+ */
 function splitKeywords(normalizedText) {
   return normalizedText
     .split(/\s+/)
     .filter(token => token.length >= 3 && !STOP_WORDS.has(token));
 }
 
+/**
+ * Monta uma string amigável com as reduções de IBS e CBS disponíveis.
+ * @param {Record<string, string>} entry Registro da base de classificação.
+ * @returns {string} Texto descrevendo as reduções ou mensagem padrão.
+ */
 function buildAliquotaInfo(entry) {
   const reductionIbs = entry['Percentual Redução IBS']?.trim();
   const reductionCbs = entry['Percentual Redução CBS']?.trim();
@@ -58,6 +106,14 @@ function buildAliquotaInfo(entry) {
   return parts.join(' • ');
 }
 
+/**
+ * Converte a planilha de classificações tributárias em uma estrutura otimizada
+ * para busca textual. Cada entrada recebe campos normalizados e um conjunto de
+ * palavras-chave para comparação rápida.
+ *
+ * @param {unknown[]} raw Dados crus importados do arquivo JSON.
+ * @returns {Array<object>} Coleção de classificações enriquecidas.
+ */
 function buildClassificationDataset(raw) {
   if (!Array.isArray(raw)) {
     return [];
@@ -73,6 +129,8 @@ function buildClassificationDataset(raw) {
       const lc214 = entry['LC 214/25']?.trim() ?? '';
       const dataAtualizacao = entry['DataAtualização']?.trim() ?? '';
       const url = entry['Url da Legislação']?.trim() ?? '';
+
+      // A concatenação dos textos fornece uma descrição ampla usada para ranking.
       const fullText = [descricaoClassificacao, descricaoCst, entry['LC Redação']]
         .filter(Boolean)
         .join(' ');
@@ -94,10 +152,22 @@ function buildClassificationDataset(raw) {
     });
 }
 
+/**
+ * Mescla as tabelas NCM e NBS em um único array normalizado.
+ * Cada item contém variações normalizadas para facilitar o cálculo de score.
+ *
+ * @param {unknown[]} ncmData Lista de itens NCM.
+ * @param {unknown[]} nbsData Lista de itens NBS.
+ * @returns {Array<object>} Conjunto unificado de nomenclaturas.
+ */
 function buildNomenclatureDataset(ncmData, nbsData) {
   const dataset = [];
   const seenCodes = new Set();
 
+  /**
+   * Adiciona um item ao dataset, evitando duplicidades por código/tipo.
+   * @param {{ tipo: 'NCM' | 'NBS', codigoOriginal: string, descricao?: string }} entry
+   */
   const addEntry = ({ tipo, codigoOriginal, descricao }) => {
     const normalizedCode = normalizeCode(codigoOriginal);
     if (!normalizedCode || seenCodes.has(`${tipo}-${normalizedCode}`)) {
@@ -135,6 +205,15 @@ function buildNomenclatureDataset(ncmData, nbsData) {
   return dataset;
 }
 
+/**
+ * Expande uma lista de itens (NCM/NBS) relacionando cada um com as
+ * classificações tributárias mais prováveis com base em palavras-chave.
+ *
+ * @param {Array<object>} items Itens da base de nomenclaturas.
+ * @param {Array<object>} classificationDataset Classificações pré-processadas.
+ * @param {string} queryText Texto original digitado pelo usuário.
+ * @returns {Array<{ item: object, classificacao: object | null }>} Linhas da tabela.
+ */
 function buildResultRows(items, classificationDataset, queryText) {
   const normalizedQuery = normalizeText(queryText);
 
@@ -143,11 +222,14 @@ function buildResultRows(items, classificationDataset, queryText) {
   items.forEach(item => {
     const descriptionKeywords = splitKeywords(item.normalizedDescricao);
     const queryKeywords = splitKeywords(normalizedQuery);
+
+    // Conjunto de palavras-chave que serão usadas para pontuar as classificações.
     const keywords = new Set([...descriptionKeywords, ...queryKeywords]);
 
     const matches = classificationDataset
       .map(classificacao => {
         let score = 0;
+
         keywords.forEach(keyword => {
           if (classificacao.keywordSet.has(keyword)) {
             score += 2;
@@ -156,6 +238,8 @@ function buildResultRows(items, classificationDataset, queryText) {
           }
         });
 
+        // Caso nenhuma palavra-chave gere pontos, tentamos uma correspondência
+        // direta usando a descrição completa do item.
         if (!score && item.normalizedDescricao && classificacao.normalizedText.includes(item.normalizedDescricao)) {
           score = 1;
         }
@@ -182,6 +266,15 @@ function buildResultRows(items, classificationDataset, queryText) {
   return results;
 }
 
+/**
+ * Calcula a relevância de cada item NCM/NBS para a consulta informada.
+ * Os critérios priorizam correspondência exata do código, seguida de
+ * prefixos e subsequências, e por fim a presença da descrição.
+ *
+ * @param {Array<object>} items Coleção de nomenclaturas normalizadas.
+ * @param {string} query Valor digitado pelo usuário.
+ * @returns {Array<object>} Itens ordenados pela melhor correspondência.
+ */
 function rankItemsByQuery(items, query) {
   const normalizedCodeQuery = normalizeCode(query);
   const normalizedTextQuery = normalizeText(query);
@@ -211,16 +304,29 @@ function rankItemsByQuery(items, query) {
     .map(entry => entry.item);
 }
 
+/**
+ * Componente principal responsável por integrar a barra de busca com a tabela
+ * de resultados. Ele pré-processa as bases de dados, controla o estado da
+ * consulta e aplica as regras de rankeamento e montagem da lista final.
+ */
 export default function App() {
+  // Pré-processa os datasets apenas uma vez, evitando recomputações custosas.
   const classificationDataset = useMemo(() => buildClassificationDataset(classificationRaw), []);
   const nomenclatureDataset = useMemo(() => buildNomenclatureDataset(ncmRaw, nbsRaw), []);
 
+  // Estados de UI: valor digitado, resultados, indicadores de busca e limites.
   const [searchValue, setSearchValue] = useState('');
   const [results, setResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
 
+  /**
+   * Atualiza a busca sempre que o usuário altera o campo da barra de pesquisa.
+   * A função realiza validações básicas e controla o fluxo de exibição de estados.
+   *
+   * @param {string} value Texto digitado na barra de busca.
+   */
   function handleSearch(value) {
     setSearchValue(value);
     const trimmed = value.trim();
@@ -256,6 +362,7 @@ export default function App() {
     setHasSearched(true);
   }
 
+  // Estados derivados para definir o conteúdo exibido na seção de resultados.
   const shouldShowPlaceholder = !hasSearched;
   const shouldShowEmptyState = hasSearched && results.length === 0;
   const shouldShowResults = hasSearched && results.length > 0;
