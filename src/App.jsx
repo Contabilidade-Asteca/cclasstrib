@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import SearchBar from './components/SearchBar';
 import ResultsTable from './components/ResultsTable';
-import ncmData from './data/Tabela_NCM_Vigente_20240921.json';
-import cclassData from './data/cclass-trib-publicacao.json';
-import ncmClassificationMapping from './data/ncm_cclass_mapping.json';
+import ncmData from './data/Tabela_NCM.json';
+import nbsData from './data/Tabela_NBS.json';
+import cclassData from './data/cclasstrib.json';
 
 const DIGIT_ONLY_REGEX = /\D/g;
 const DIACRITICS_REGEX = /\p{Diacritic}/gu;
