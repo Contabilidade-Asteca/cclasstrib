@@ -27,7 +27,7 @@ export default function SearchBar({ value, onSearch }) {
           className="search-bar__input"
           type="search"
           value={value}
-          placeholder='Ex.: 01012100 ou "geladeira"'
+          placeholder='Ex.: 01012100 ou "08081000"'
           onChange={handleChange}
           autoComplete="off"
           spellCheck="false"
